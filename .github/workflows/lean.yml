@@ -1,0 +1,33 @@
+name: Lean proofs
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lean toolchain
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Pin Mathlib
+        run: lake update
+      - name: Fetch cached Mathlib artifacts
+        run: lake exe cache get
+      - name: Compile named proof roots
+        run: lake build
+      - name: Print trusted axioms
+        run: lake build SpiralFormal.Audit
+      - name: Reject admitted proof placeholders
+        run: |
+          if grep -REn '(^|[^[:alnum:]_])(sorry|admit)([^[:alnum:]_]|$)' SpiralFormal/*.lean; then
+            echo "Unproved placeholder in proof leaves."
+            exit 1
+          fi
